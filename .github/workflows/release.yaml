@@ -1,0 +1,73 @@
+name: Promote Customer Prompts
+
+on:
+  workflow_dispatch:
+    inputs:
+      customer:
+        description: 'Customer folder to promote (e.g., customerA, customerB)'
+        required: true
+        default: 'customerA'
+      target_branch:
+        description: 'Target branch for release (preview, staging or prod)'
+        required: true
+        default: 'preview'
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout preview branch
+        uses: actions/checkout@v3
+        with:
+          ref: preview
+
+      - name: Copy Customer Files
+        id: copyfiles
+        run: |
+          echo "Promoting prompts for customer: ${{ github.event.inputs.customer }}"
+          # Create a temporary folder to store customer-specific prompts
+          mkdir -p /tmp/customer_prompts
+          cp -R prompts/${{ github.event.inputs.customer }} /tmp/customer_prompts/
+
+      - name: Checkout target branch
+        run: |
+          git fetch origin ${{ github.event.inputs.target_branch }}:${{ github.event.inputs.target_branch }}
+          git checkout ${{ github.event.inputs.target_branch }}
+
+      - name: Update Customer Files in Target Branch
+        run: |
+          # Update the customer folder using rsync (sync and delete removed files)
+          rsync -av --delete /tmp/customer_prompts/ ./prompts/${{ github.event.inputs.customer }}/
+
+      - name: Commit and Push Changes
+        id: commit
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add prompts/${{ github.event.inputs.customer }}
+          if git diff-index --quiet HEAD --; then
+            echo "No changes to commit."
+            exit 0
+          else
+            git commit -m "Promote ${GITHUB_REF} customer ${{ github.event.inputs.customer }} changes to ${{ github.event.inputs.target_branch }}"
+            git push origin ${{ github.event.inputs.target_branch }}
+          fi
+
+      - name: Create Tags
+        if: steps.commit.outcome == 'success'
+        run: |
+          # Get the short commit hash of the latest commit on the target branch
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          echo "Latest commit hash: $COMMIT_HASH"
+          
+          # Create tags with new naming convention: env-customer-[latest|hash]
+          LATEST_TAG="${{ github.event.inputs.target_branch }}-${{ github.event.inputs.customer }}-latest"
+          HASH_TAG="${{ github.event.inputs.target_branch }}-${{ github.event.inputs.customer }}-${COMMIT_HASH}"
+          
+          # Create/update the latest tag
+          git tag -f "$LATEST_TAG" -m "Latest release for customer ${{ github.event.inputs.customer }} on ${{ github.event.inputs.target_branch }}"
+          git push origin "$LATEST_TAG" --force
+          
+          # Create the commit-specific tag
+          git tag "$HASH_TAG" -m "Release for customer ${{ github.event.inputs.customer }} on ${{ github.event.inputs.target_branch }} (commit: $COMMIT_HASH)"
+          git push origin "$HASH_TAG"
