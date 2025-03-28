@@ -8,4 +8,4 @@ variables:
 description: "Template for confirming an order with expected delivery date."
 ---
 
-Hello {{ customer_name }}, your order (ID: {{ order_id }}) is confirmed for delivery on {{ delivery_date }}. Customer B
+Hello World World {{ customer_name }}, your order (ID: {{ order_id }}) is confirmed for delivery on {{ delivery_date }}. Customer B
