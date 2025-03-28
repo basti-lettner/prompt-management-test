@@ -28,7 +28,7 @@ on:
           - preview
 
 env:
-  GH_TOKEN: ${{ github.token }}
+  GH_TOKEN: ${{ secrets.PR_TOKEN }}
 
 jobs:
   create-release-pr:
