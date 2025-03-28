@@ -1,0 +1,105 @@
+name: Create Customer Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      customer:
+        description: 'Customer folder to promote (e.g., customerA, customerB)'
+        required: true
+        type: 'choice'
+        options:
+          - customerA
+          - customerB
+      source_branch:
+        description: 'Source branch to promote from'
+        required: true
+        type: 'choice'
+        options:
+          - main
+          - staging
+          - preview
+      target_branch:
+        description: 'Target branch for release (staging or prod)'
+        required: true
+        type: 'choice'
+        options:
+          - staging
+          - prod
+          - preview
+
+env:
+  GH_TOKEN: ${{ secrets.PR_TOKEN }}
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Verify branches and fetch
+        run: |
+          # Fetch all branches
+          git fetch origin
+          
+          # Verify source branch exists
+          if ! git rev-parse --verify origin/${{ github.event.inputs.source_branch }}; then
+            echo "Source branch '${{ github.event.inputs.source_branch }}' does not exist"
+            exit 1
+          fi
+          
+          # Verify target branch exists
+          if ! git rev-parse --verify origin/${{ github.event.inputs.target_branch }}; then
+            echo "Target branch '${{ github.event.inputs.target_branch }}' does not exist"
+            exit 1
+          fi
+
+      - name: Create release branch
+        id: branch-name
+        run: |
+          # Set Git configuration
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "github-actions@github.com"
+          
+          # Create branch name
+          RELEASE_BRANCH="release/${{ github.event.inputs.customer }}-to-${{ github.event.inputs.target_branch }}"
+          echo "name=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
+          
+          # Create a new branch for the PR from the target branch
+          git checkout -b $RELEASE_BRANCH origin/${{ github.event.inputs.target_branch }}
+          
+          # Get commits that touched the customer folder
+          COMMITS=$(git log origin/${{ github.event.inputs.target_branch }}..origin/${{ github.event.inputs.source_branch }} --format="%H" -- prompts/${{ github.event.inputs.customer }}/)
+          
+          if [ -z "$COMMITS" ]; then
+            echo "No commits found for customer ${{ github.event.inputs.customer }}"
+            exit 1
+          fi
+          
+          # Cherry pick each commit
+          echo "$COMMITS" | while read COMMIT; do
+            if [ ! -z "$COMMIT" ]; then
+              git cherry-pick -x $COMMIT || {
+                echo "Failed to cherry-pick $COMMIT"
+                exit 1
+              }
+            fi
+          done
+          
+          # Push the branch
+          git push origin $RELEASE_BRANCH
+
+      - name: Create PR
+        run: |
+          gh pr create \
+            --base ${{ github.event.inputs.target_branch }} \
+            --head "${{ steps.branch-name.outputs.name }}" \
+            --title "Release ${{ github.event.inputs.customer }} to ${{ github.event.inputs.target_branch }}" \
+            --body "This PR promotes changes for ${{ github.event.inputs.customer }} from ${{ github.event.inputs.source_branch }} to ${{ github.event.inputs.target_branch }}." \
+            --label "${{ github.event.inputs.customer }},release-to-${{ github.event.inputs.target_branch }}"

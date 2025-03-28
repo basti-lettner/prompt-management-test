@@ -1,0 +1,66 @@
+name: Tag Customer Releases
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - preview
+      - staging
+      - prod
+    paths:
+      - 'prompts/**'
+
+jobs:
+  create-tags:
+    # Only run when PR is merged (not when just closed)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get merged commits and affected customer
+        id: get-info
+        run: |
+          # Get the target branch (where PR was merged)
+          TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
+          echo "target_branch=$TARGET_BRANCH" >> $GITHUB_OUTPUT
+          
+          # Get all commits that were merged in this PR
+          COMMITS=$(git log ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} --format="%H")
+          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+          
+          # Extract customer name from the branch (release/customerA-to-staging -> customerA)
+          CUSTOMER=$(echo "${{ github.event.pull_request.head.ref }}" | sed -n 's/^release\/\(.*\)-to-.*/\1/p')
+          echo "customer=$CUSTOMER" >> $GITHUB_OUTPUT
+
+      - name: Create tags for each commit
+        run: |
+          TARGET_BRANCH="${{ steps.get-info.outputs.target_branch }}"
+          CUSTOMER="${{ steps.get-info.outputs.customer }}"
+          
+          echo "${{ steps.get-info.outputs.commits }}" | while read COMMIT; do
+            if [ ! -z "$COMMIT" ]; then
+              # Get short commit hash
+              SHORT_HASH=$(git rev-parse --short "$COMMIT")
+              
+              # Create tags with naming convention: env-customer-[latest|hash]
+              LATEST_TAG="${TARGET_BRANCH}-${CUSTOMER}-latest"
+              HASH_TAG="${TARGET_BRANCH}-${CUSTOMER}-${SHORT_HASH}"
+              
+              echo "Creating tags for commit $SHORT_HASH"
+              
+              # Create/update the latest tag
+              git tag -f "$LATEST_TAG" $COMMIT -m "Latest release for customer ${CUSTOMER} on ${TARGET_BRANCH}"
+              git push origin "$LATEST_TAG" --force
+              
+              # Create the commit-specific tag
+              git tag "$HASH_TAG" $COMMIT -m "Release for customer ${CUSTOMER} on ${TARGET_BRANCH} (commit: $SHORT_HASH)"
+              git push origin "$HASH_TAG"
+            fi
+          done 
