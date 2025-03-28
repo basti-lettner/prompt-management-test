@@ -85,9 +85,6 @@ jobs:
               }
             fi
           done
-          
-          # Push the release branch
-          git push origin $RELEASE_BRANCH
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
@@ -95,7 +92,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: ${{ github.event.inputs.target_branch }}
           branch: release/${{ github.event.inputs.customer }}-to-${{ github.event.inputs.target_branch }}
+          delete-branch: true
           title: "Release ${{ github.event.inputs.customer }} to ${{ github.event.inputs.target_branch }}"
+          commit-message: "feat: promote ${{ github.event.inputs.customer }} to ${{ github.event.inputs.target_branch }}"
           body: |
             This PR promotes changes for ${{ github.event.inputs.customer }} from ${{ github.event.inputs.source_branch }} to ${{ github.event.inputs.target_branch }}.
             
