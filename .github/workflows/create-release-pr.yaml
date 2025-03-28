@@ -102,4 +102,4 @@ jobs:
             --head "${{ steps.branch-name.outputs.name }}" \
             --title "Release ${{ github.event.inputs.customer }} to ${{ github.event.inputs.target_branch }}" \
             --body "This PR promotes changes for ${{ github.event.inputs.customer }} from ${{ github.event.inputs.source_branch }} to ${{ github.event.inputs.target_branch }}." \
-            --label "customer-release,${{ github.event.inputs.customer }}"
+            --label "${{ github.event.inputs.customer }}, release-to-${{ github.event.inputs.target_branch }}"
