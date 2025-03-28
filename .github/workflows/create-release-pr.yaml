@@ -60,6 +60,10 @@ jobs:
 
       - name: Create release branch
         run: |
+          # Set Git configuration
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "github-actions@github.com"
+          
           # Create a new branch for the PR from the target branch
           RELEASE_BRANCH="release/${{ github.event.inputs.customer }}-to-${{ github.event.inputs.target_branch }}"
           git checkout -b $RELEASE_BRANCH origin/${{ github.event.inputs.target_branch }}
