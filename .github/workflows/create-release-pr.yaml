@@ -1,0 +1,84 @@
+name: Create Customer Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      customer:
+        description: 'Customer folder to promote (e.g., customerA, customerB)'
+        required: true
+        type: 'choice'
+        options:
+          - customerA
+          - customerB
+      source_branch:
+        description: 'Source branch to promote from'
+        required: true
+        default: 'main'
+      target_branch:
+        description: 'Target branch for release (staging or prod)'
+        required: true
+        default: 'staging'
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release branch
+        run: |
+          # Create a new branch for the PR
+          RELEASE_BRANCH="release/${{ github.event.inputs.customer }}-to-${{ github.event.inputs.target_branch }}"
+          git checkout -b $RELEASE_BRANCH ${{ github.event.inputs.target_branch }}
+          
+          # Get commits that touched the customer folder
+          COMMITS=$(git log ${{ github.event.inputs.target_branch }}..${{ github.event.inputs.source_branch }} --format="%H" -- prompts/${{ github.event.inputs.customer }}/)
+          
+          if [ -z "$COMMITS" ]; then
+            echo "No commits found for customer ${{ github.event.inputs.customer }}"
+            exit 1
+          fi
+          
+          # Cherry pick each commit
+          echo "$COMMITS" | while read COMMIT; do
+            if [ ! -z "$COMMIT" ]; then
+              git cherry-pick -x $COMMIT || {
+                echo "Failed to cherry-pick $COMMIT"
+                exit 1
+              }
+            fi
+          done
+          
+          # Push the release branch
+          git push origin $RELEASE_BRANCH
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ github.event.inputs.target_branch }}
+          branch: release/${{ github.event.inputs.customer }}-to-${{ github.event.inputs.target_branch }}
+          title: "Release ${{ github.event.inputs.customer }} to ${{ github.event.inputs.target_branch }}"
+          body: |
+            This PR promotes changes for ${{ github.event.inputs.customer }} from ${{ github.event.inputs.source_branch }} to ${{ github.event.inputs.target_branch }}.
+            
+            ### Changes Included
+            Only changes affecting the `prompts/${{ github.event.inputs.customer }}/` directory have been cherry-picked.
+            
+            ### Review Instructions
+            - Please verify that only changes for ${{ github.event.inputs.customer }} are included
+            - Check that all files are in their expected state
+            - Verify that no unintended changes were included
+            
+            Created by automated workflow.
+          labels: |
+            customer-release
+            ${{ github.event.inputs.customer }}
