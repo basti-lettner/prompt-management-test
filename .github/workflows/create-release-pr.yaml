@@ -92,9 +92,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: ${{ github.event.inputs.target_branch }}
           branch: release/${{ github.event.inputs.customer }}-to-${{ github.event.inputs.target_branch }}
-          delete-branch: true
           title: "Release ${{ github.event.inputs.customer }} to ${{ github.event.inputs.target_branch }}"
-          commit-message: "feat: promote ${{ github.event.inputs.customer }} to ${{ github.event.inputs.target_branch }}"
           body: |
             This PR promotes changes for ${{ github.event.inputs.customer }} from ${{ github.event.inputs.source_branch }} to ${{ github.event.inputs.target_branch }}.
             
@@ -105,8 +103,6 @@ jobs:
             - Please verify that only changes for ${{ github.event.inputs.customer }} are included
             - Check that all files are in their expected state
             - Verify that no unintended changes were included
-            
-            Created by automated workflow.
           labels: |
             customer-release
             ${{ github.event.inputs.customer }}
