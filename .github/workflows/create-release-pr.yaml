@@ -13,11 +13,19 @@ on:
       source_branch:
         description: 'Source branch to promote from'
         required: true
-        default: 'main'
+        default: 'choice'
+        options:
+          - main
+          - staging
+          - preview
       target_branch:
         description: 'Target branch for release (staging or prod)'
         required: true
-        default: 'staging'
+        default: 'choice'
+        options:
+          - staging
+          - prod
+          - preview
 
 jobs:
   create-release-pr:
@@ -33,14 +41,31 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify branches and fetch
+        run: |
+          # Fetch all branches
+          git fetch origin
+          
+          # Verify source branch exists
+          if ! git rev-parse --verify origin/${{ github.event.inputs.source_branch }}; then
+            echo "Source branch '${{ github.event.inputs.source_branch }}' does not exist"
+            exit 1
+          fi
+          
+          # Verify target branch exists
+          if ! git rev-parse --verify origin/${{ github.event.inputs.target_branch }}; then
+            echo "Target branch '${{ github.event.inputs.target_branch }}' does not exist"
+            exit 1
+          fi
+
       - name: Create release branch
         run: |
-          # Create a new branch for the PR
+          # Create a new branch for the PR from the target branch
           RELEASE_BRANCH="release/${{ github.event.inputs.customer }}-to-${{ github.event.inputs.target_branch }}"
-          git checkout -b $RELEASE_BRANCH ${{ github.event.inputs.target_branch }}
+          git checkout -b $RELEASE_BRANCH origin/${{ github.event.inputs.target_branch }}
           
           # Get commits that touched the customer folder
-          COMMITS=$(git log ${{ github.event.inputs.target_branch }}..${{ github.event.inputs.source_branch }} --format="%H" -- prompts/${{ github.event.inputs.customer }}/)
+          COMMITS=$(git log origin/${{ github.event.inputs.target_branch }}..origin/${{ github.event.inputs.source_branch }} --format="%H" -- prompts/${{ github.event.inputs.customer }}/)
           
           if [ -z "$COMMITS" ]; then
             echo "No commits found for customer ${{ github.event.inputs.customer }}"
