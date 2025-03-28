@@ -13,7 +13,7 @@ on:
       source_branch:
         description: 'Source branch to promote from'
         required: true
-        default: 'choice'
+        type: 'choice'
         options:
           - main
           - staging
@@ -21,7 +21,7 @@ on:
       target_branch:
         description: 'Target branch for release (staging or prod)'
         required: true
-        default: 'choice'
+        type: 'choice'
         options:
           - staging
           - prod
