@@ -6,4 +6,4 @@ variables:
 description: "Template for confirming an order with expected delivery date."
 ---
 
-Hello {{ customer_name }}, your shipement ID is {{ shipment_id }}. Customer A
+Hello {{ customer_name }}, your shipement ID is {{ shipment_id }}. Customer A 2
